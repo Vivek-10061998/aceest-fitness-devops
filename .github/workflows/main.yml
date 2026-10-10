@@ -1,0 +1,35 @@
+name: ACEest CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Build and syntax validation
+        run: python -m compileall -q app.py tests
+
+      - name: Run Pytest on runner
+        run: python -m pytest -q
+
+      - name: Build Docker image
+        run: docker build -t aceest-fitness:${{ github.sha }} .
+
+      - name: Run Pytest inside Docker container
+        run: docker run --rm aceest-fitness:${{ github.sha }} python -m pytest -q
