@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ACEest Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <div class="brand-mark small">ACEest</div>
+    <h1>Fitness Dashboard</h1>
+  </div>
+  <div class="user-box">
+    <span>{{ session.get('username') }} · {{ session.get('role') }}</span>
+    <a class="button ghost" href="{{ url_for('logout') }}">Logout</a>
+  </div>
+</header>
+
+<main class="page">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <section class="card toolbar">
+    <div>
+      <h2>Select Client</h2>
+      <form method="get" action="{{ url_for('dashboard') }}" class="inline-form">
+        <select name="client_id" onchange="this.form.submit()">
+          <option value="">-- choose client --</option>
+          {% for c in clients %}
+            <option value="{{ c['id'] }}" {% if selected and selected['id'] == c['id'] %}selected{% endif %}>{{ c['name'] }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit">Load</button></noscript>
+      </form>
+    </div>
+    <div class="toolbar-actions">
+      <a class="button" href="{{ url_for('dashboard') }}">New Client</a>
+      <a class="button" href="{{ url_for('export_csv') }}">Export CSV</a>
+    </div>
+  </section>
+
+  <div class="grid two">
+    <section class="card">
+      <h2>{{ 'Edit Client' if selected else 'Add Client' }}</h2>
+      <form method="post" action="{{ url_for('save_client') }}" class="form-grid">
+        {% if selected %}<input type="hidden" name="client_id" value="{{ selected['id'] }}">{% endif %}
+        <label>Name<input name="name" value="{{ selected['name'] if selected else '' }}" required></label>
+        <label>Age<input type="number" min="1" name="age" value="{{ selected['age'] if selected and selected['age'] else '' }}"></label>
+        <label>Height (cm)<input type="number" step="0.1" min="1" name="height" value="{{ selected['height'] if selected and selected['height'] else '' }}"></label>
+        <label>Weight (kg)<input type="number" step="0.1" min="1" name="weight" value="{{ selected['weight'] if selected and selected['weight'] else '' }}"></label>
+        <label class="span-2">Program
+          <select name="program" required>
+            <option value="">-- select program --</option>
+            {% for name, data in programs.items() %}
+              <option value="{{ name }}" {% if selected and selected['program'] == name %}selected{% endif %}>{{ name }} — {{ data['desc'] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Target Weight (kg)<input type="number" step="0.1" min="1" name="target_weight" value="{{ selected['target_weight'] if selected and selected['target_weight'] else '' }}"></label>
+        <label>Target Adherence %<input type="number" min="0" max="100" name="target_adherence" value="{{ selected['target_adherence'] if selected and selected['target_adherence'] is not none else '' }}"></label>
+        <label>Membership Status
+          <select name="membership_status">
+            {% set status = selected['membership_status'] if selected else 'Active' %}
+            {% for item in ['Active','Pending','Expired','Paused'] %}
+              <option value="{{ item }}" {% if status == item %}selected{% endif %}>{{ item }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Membership End<input type="date" name="membership_end" value="{{ selected['membership_end'] if selected and selected['membership_end'] else '' }}"></label>
+        <button class="primary span-2" type="submit">Save Client</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Client Summary</h2>
+      {% if selected %}
+        <div class="stats">
+          <div><span>Name</span><strong>{{ selected['name'] }}</strong></div>
+          <div><span>Program</span><strong>{{ selected['program'] or 'N/A' }}</strong></div>
+          <div><span>Calories</span><strong>{{ (selected['calories'] ~ ' kcal/day') if selected['calories'] else 'N/A' }}</strong></div>
+          <div><span>Membership</span><strong>{{ selected['membership_status'] or 'N/A' }}</strong></div>
+          <div><span>Target Weight</span><strong>{{ (selected['target_weight'] ~ ' kg') if selected['target_weight'] else 'N/A' }}</strong></div>
+          <div><span>Target Adherence</span><strong>{{ (selected['target_adherence'] ~ '%') if selected['target_adherence'] is not none else 'N/A' }}</strong></div>
+        </div>
+        {% if bmi_info %}
+          <div class="info-box"><strong>BMI {{ bmi_info['bmi'] }} — {{ bmi_info['category'] }}</strong><br>{{ bmi_info['risk'] }}</div>
+        {% endif %}
+        <div class="button-row">
+          <a class="button" href="{{ url_for('check_membership', client_id=selected['id']) }}">Check Membership</a>
+          <a class="button" href="{{ url_for('export_pdf', client_id=selected['id']) }}">PDF Report</a>
+        </div>
+      {% else %}
+        <p class="muted">Add or select a client to view the full summary.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  {% if selected %}
+  <div class="grid two">
+    <section class="card">
+      <h2>AI-style Program Generator</h2>
+      <form method="post" action="{{ url_for('generate_program', client_id=selected['id']) }}" class="inline-form">
+        <select name="experience" required>
+          <option value="">Experience level</option>
+          <option value="beginner">Beginner</option>
+          <option value="intermediate">Intermediate</option>
+          <option value="advanced">Advanced</option>
+        </select>
+        <button class="primary" type="submit">Generate Program</button>
+      </form>
+      {% if generated_program %}
+        <div class="table-wrap">
+          <table><thead><tr><th>Day</th><th>Exercise</th><th>Sets</th><th>Reps</th></tr></thead><tbody>
+          {% for row in generated_program %}
+            <tr><td>{{ row['day'] }}</td><td>{{ row['exercise'] }}</td><td>{{ row['sets'] }}</td><td>{{ row['reps'] }}</td></tr>
+          {% endfor %}
+          </tbody></table>
+        </div>
+      {% else %}<p class="muted">Generate a plan to display the weekly schedule.</p>{% endif %}
+    </section>
+
+    <section class="card">
+      <h2>Weekly Progress / Adherence Chart</h2>
+      <form method="post" action="{{ url_for('add_progress', client_id=selected['id']) }}" class="form-grid compact">
+        <label>Week<input name="week" placeholder="Week 1" required></label>
+        <label>Adherence %<input type="number" min="0" max="100" name="adherence" required></label>
+        <button class="primary span-2" type="submit">Save Weekly Progress</button>
+      </form>
+      <div class="bar-chart">
+        {% for p in progress %}
+          <div class="bar-row"><span>{{ p['week'] }}</span><div class="bar-track"><div class="bar-fill" style="width: {{ p['adherence'] }}%"></div></div><strong>{{ p['adherence'] }}%</strong></div>
+        {% else %}<p class="muted">No progress data yet.</p>{% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <div class="grid two">
+    <section class="card">
+      <h2>Body Metrics & Weight Trend</h2>
+      <form method="post" action="{{ url_for('add_metrics', client_id=selected['id']) }}" class="form-grid compact">
+        <label>Date<input type="date" name="date" value="{{ today }}" required></label>
+        <label>Weight (kg)<input type="number" step="0.1" min="0" name="weight"></label>
+        <label>Waist (cm)<input type="number" step="0.1" min="0" name="waist"></label>
+        <label>Body Fat %<input type="number" step="0.1" min="0" name="bodyfat"></label>
+        <button class="primary span-2" type="submit">Save Metrics</button>
+      </form>
+      {% if weight_chart %}
+      <div class="weight-chart">
+        {% for p in weight_chart %}
+          <div class="weight-column" title="{{ p['date'] }}: {{ p['weight'] }} kg">
+            <span>{{ p['weight'] }}</span><div class="weight-bar" style="height: {{ p['height'] }}px"></div><small>{{ p['date'][5:] }}</small>
+          </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="table-wrap small-table">
+        <table><thead><tr><th>Date</th><th>Weight</th><th>Waist</th><th>Body Fat</th></tr></thead><tbody>
+        {% for m in metrics %}<tr><td>{{ m['date'] }}</td><td>{{ m['weight'] or '-' }}</td><td>{{ m['waist'] or '-' }}</td><td>{{ m['bodyfat'] or '-' }}</td></tr>
+        {% else %}<tr><td colspan="4">No metrics yet.</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Workout & Exercise Log</h2>
+      <form method="post" action="{{ url_for('add_workout', client_id=selected['id']) }}" class="form-grid compact">
+        <label>Date<input type="date" name="date" value="{{ today }}" required></label>
+        <label>Workout Type
+          <select name="workout_type" required><option value="">-- select --</option>{% for t in ['Strength','Hypertrophy','Conditioning','Mixed','Mobility'] %}<option>{{ t }}</option>{% endfor %}</select>
+        </label>
+        <label>Duration (min)<input type="number" min="1" name="duration_min" value="60"></label>
+        <label>Exercise<input name="exercise_name" placeholder="Squat"></label>
+        <label>Sets<input type="number" min="1" name="sets" value="3"></label>
+        <label>Reps<input type="number" min="1" name="reps" value="10"></label>
+        <label>Exercise Weight (kg)<input type="number" step="0.1" min="0" name="exercise_weight" value="0"></label>
+        <label class="span-2">Notes<textarea name="notes" rows="3"></textarea></label>
+        <button class="primary span-2" type="submit">Log Workout</button>
+      </form>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Workout History</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Duration</th><th>Exercise</th><th>Sets × Reps</th><th>Weight</th><th>Notes</th></tr></thead>
+        <tbody>
+        {% for w in workouts %}
+          <tr>
+            <td>{{ w['date'] }}</td><td>{{ w['workout_type'] }}</td><td>{{ w['duration_min'] or '-' }} min</td>
+            <td>{{ w['exercise_name'] or '-' }}</td><td>{{ (w['sets'] ~ ' × ' ~ w['reps']) if w['exercise_name'] else '-' }}</td>
+            <td>{{ (w['exercise_weight'] ~ ' kg') if w['exercise_weight'] is not none and w['exercise_name'] else '-' }}</td><td>{{ w['notes'] or '-' }}</td>
+          </tr>
+        {% else %}<tr><td colspan="7">No workouts logged yet.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</main>
+<footer>ACEest Fitness & Gym · DevOps Assignment 1</footer>
+</body>
+</html>

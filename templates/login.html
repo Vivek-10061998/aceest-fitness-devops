@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ACEest Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-body">
+  <main class="login-card">
+    <div class="brand-mark">ACEest</div>
+    <h1>Fitness & Performance</h1>
+    <p class="muted">Sign in to manage clients, workouts, progress and reports.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="post" class="stack-form">
+      <label>Username<input name="username" required autofocus></label>
+      <label>Password<input type="password" name="password" required></label>
+      <button type="submit" class="primary">Login</button>
+    </form>
+    <p class="hint">Demo account: <strong>admin / admin</strong></p>
+  </main>
+</body>
+</html>
